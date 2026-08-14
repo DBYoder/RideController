@@ -43,8 +43,15 @@ No Python, no pip, no git — it is all bundled. Every command below works the
 same way, as `.\ridecontroller.exe run` and so on.
 
 You still need ViGEmBus. It is a kernel-mode driver, so it cannot live inside
-an exe — but its installer is bundled, and `vgamepad` runs it the first time a
-pad is created. Reboot afterwards if it asks you to.
+an exe. Its installer *is* bundled, but nothing runs it for you — the source
+installs get the driver as a side effect of `pip install`, and the exe never
+runs that step. So install it once, first:
+
+```powershell
+.\ridecontroller.exe install-driver
+```
+
+Windows will ask for administrator permission, and may ask you to reboot.
 
 Two other things to expect the first time. Windows SmartScreen will warn about
 an unrecognised publisher, because the exe is not code-signed: choose **More
@@ -166,7 +173,8 @@ you can keep one profile per game.
 | --- | --- |
 | `No Zwift Ride controller found` | Press a button to wake the controller. Close Zwift and the Companion app — they hold the BLE connection. Try `ridecontroller scan --all`. |
 | `no Zwift service found` | Update the controller firmware in the Zwift Companion app. |
-| `could not create a virtual Xbox 360 pad` | Install ViGEmBus and reboot: <https://github.com/nefarius/ViGEmBus/releases> |
+| `could not create a virtual Xbox 360 pad` | Run `ridecontroller install-driver`, then reboot. Or install it by hand: <https://github.com/nefarius/ViGEmBus/releases> |
+| `vgamepad cannot reach ViGEmBus` | Same thing — the driver is missing. `ridecontroller install-driver`. |
 | Buttons land on the wrong outputs | Run `ridecontroller monitor` to see the input names, then remap them in the config. |
 | Paddles feel half-scale or read negative | Set `analog_encoding = "varint"` under `[protocol]`. See [docs/PROTOCOL.md](docs/PROTOCOL.md). |
 | Controller drops out mid-session | Reconnection is automatic (`device.reconnect`); check the battery with `--log-level debug`. |

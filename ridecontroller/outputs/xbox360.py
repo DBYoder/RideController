@@ -53,6 +53,14 @@ class Xbox360Output(GamepadOutput):
             import vgamepad
         except ImportError as exc:  # pragma: no cover - platform dependent
             raise OutputError(f"vgamepad is not installed.\n{_INSTALL_HINT}") from exc
+        except Exception as exc:  # pragma: no cover - driver dependent
+            # vgamepad connects to ViGEmBus while it is still importing, and
+            # raises a bare Exception("VIGEM_ERROR_BUS_NOT_FOUND") when the
+            # driver is missing. Catching only ImportError above let that
+            # escape as a traceback.
+            raise OutputError(
+                f"could not reach the ViGEmBus driver: {exc}\n{_INSTALL_HINT}"
+            ) from exc
 
         try:
             self._gamepad = vgamepad.VX360Gamepad()
