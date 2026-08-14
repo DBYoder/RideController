@@ -53,7 +53,10 @@ def build_parser() -> argparse.ArgumentParser:
         help="logging verbosity (default: info)",
     )
 
-    subparsers = parser.add_subparsers(dest="command", required=True)
+    # Not required: launching with no arguments at all means the exe was
+    # double-clicked rather than typed, so it opens the control panel.
+    subparsers = parser.add_subparsers(dest="command")
+    parser.set_defaults(func=None)
 
     scan_parser = subparsers.add_parser("scan", help="list nearby Zwift controllers")
     scan_parser.add_argument(
@@ -114,6 +117,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     doctor_parser.set_defaults(func=cmd_doctor)
 
+    gui_parser = subparsers.add_parser("gui", help="open the control panel window")
+    gui_parser.set_defaults(func=cmd_gui)
+
     driver_parser = subparsers.add_parser(
         "install-driver", help="install the bundled ViGEmBus driver"
     )
@@ -128,6 +134,8 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+    if args.func is None:
+        args = parser.parse_args(["gui"])
     logging.basicConfig(
         level=getattr(logging, args.log_level.upper()),
         format="%(asctime)s %(levelname)-7s %(message)s",
@@ -356,6 +364,25 @@ def cmd_doctor(args: argparse.Namespace, config: Config) -> int:
     print()
     print("All good." if ok else "Some checks failed - see above.")
     return 0 if ok else 1
+
+
+def cmd_gui(args: argparse.Namespace, config: Config) -> int:
+    try:
+        from . import gui
+    except ImportError as exc:  # tkinter is optional on some Linux builds
+        print(f"error: the control panel needs tkinter ({exc})", file=sys.stderr)
+        print("Install it, or use the commands instead: ridecontroller run", file=sys.stderr)
+        return 2
+
+    import tkinter
+
+    try:
+        return gui.run(config)
+    except tkinter.TclError as exc:
+        # No display: a headless session, or SSH without X forwarding.
+        print(f"error: could not open a window ({exc})", file=sys.stderr)
+        print("Use the commands instead: ridecontroller run", file=sys.stderr)
+        return 2
 
 
 def cmd_install_driver(args: argparse.Namespace, config: Config) -> int:

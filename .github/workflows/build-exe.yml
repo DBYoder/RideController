@@ -120,6 +120,37 @@ jobs:
           .\dist\ridecontroller.exe outputs
           if ($LASTEXITCODE -ne 0) { exit 1 }
 
+      # The control panel is imported inside a function so the CLI still works
+      # without tkinter, which also means PyInstaller could quietly leave
+      # tkinter out and nothing would notice until someone opened the window.
+      - name: Smoke test - the control panel opens
+        run: |
+          $proc = Start-Process -FilePath .\dist\ridecontroller.exe -ArgumentList 'gui' `
+            -PassThru -RedirectStandardError gui-err.txt -RedirectStandardOutput gui-out.txt
+          Start-Sleep -Seconds 8
+          $stderr = if (Test-Path gui-err.txt) { Get-Content gui-err.txt -Raw } else { '' }
+
+          if ($stderr -match 'needs tkinter') {
+            Write-Host '::error::tkinter was not bundled into the exe'
+            Write-Host $stderr
+            exit 1
+          }
+
+          if ($proc.HasExited) {
+            Write-Host "exited with $($proc.ExitCode):"
+            Write-Host $stderr
+            # A runner may have no interactive desktop. That is a display
+            # problem, not a packaging one, and tkinter clearly loaded.
+            if ($stderr -notmatch 'could not open a window') {
+              Write-Host '::error::the control panel exited unexpectedly'
+              exit 1
+            }
+            Write-Host 'no desktop on the runner; tkinter itself loaded, which is what this checks'
+          } else {
+            Stop-Process -Id $proc.Id -Force
+            Write-Host 'the control panel opened and stayed up'
+          }
+
       # ViGEmBus is installed above, so this may genuinely create a virtual pad
       # through the bundled ViGEmClient.dll - the one path that cannot be
       # tested anywhere but Windows. Not gating: the driver may need the reboot

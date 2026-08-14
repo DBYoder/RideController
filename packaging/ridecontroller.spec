@@ -41,6 +41,11 @@ for package in ("vgamepad",):
     binaries += package_binaries
     hiddenimports += package_hiddenimports
 
+# cli.py imports the control panel inside a function, so that the CLI still
+# works where tkinter is absent. Name both explicitly rather than rely on
+# PyInstaller following a deferred import.
+hiddenimports += ["ridecontroller.gui", "tkinter", "tkinter.ttk", "tkinter.messagebox"]
+
 a = Analysis(
     [os.path.join(SPECPATH, "entry.py")],  # noqa: F821 - SPECPATH is injected
     pathex=[],
@@ -50,7 +55,8 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=["tkinter"],
+    # tkinter is the control panel, so it has to stay in.
+    excludes=[],
     noarchive=False,
 )
 
