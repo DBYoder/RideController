@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ridecontroller"
+version = "0.1.0"
+description = "Use a Zwift Ride controller as a virtual Xbox gamepad for Steam games"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+keywords = ["zwift", "zwift-ride", "bluetooth", "ble", "gamepad", "steam", "vigem"]
+classifiers = [
+    "Environment :: Console",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python :: 3",
+    "Topic :: Games/Entertainment",
+]
+dependencies = [
+    "bleak>=0.21",
+    "tomli>=2.0; python_version < '3.11'",
+    "vgamepad>=0.1.0; sys_platform == 'win32'",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0"]
+
+[project.scripts]
+ridecontroller = "ridecontroller.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/DBYoder/RideController"
+
+[tool.setuptools.packages.find]
+include = ["ridecontroller*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
