@@ -225,8 +225,10 @@ class App(ttk.Frame):
 
         triggers = ttk.Frame(box, padding=(0, 8, 0, 0))
         triggers.grid(row=1, column=0, sticky="ew")
-        triggers.columnconfigure(1, weight=1)
-        triggers.columnconfigure(3, weight=1)
+        # uniform= keeps the two bars the same width whatever the frame does,
+        # so an equal press does not look unequal.
+        triggers.columnconfigure(1, weight=1, uniform="trigger")
+        triggers.columnconfigure(3, weight=1, uniform="trigger")
 
         ttk.Label(triggers, text="LT").grid(row=0, column=0, sticky="w")
         self.left_trigger = ttk.Progressbar(triggers, maximum=TRIGGER_MAX, length=110)

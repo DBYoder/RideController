@@ -90,11 +90,21 @@ window instead of printing usage:
 .\ridecontroller.exe gui
 ```
 
-It shows whether ViGEmBus is working — with a button to install it if not —
-which controllers are connected and their battery, one Start/Stop button, and
-a live display that lights up each button as you press it. That last part is
-the quickest way to check a remap, or to see which physical button produces
-which name.
+![The control panel, connected and running](docs/images/control-panel-running.png)
+
+Buttons light up as you press them, and the triggers move with the brake
+paddles. That is the quickest way to check a remap, or to find which physical
+button produces which name — faster than reading `ridecontroller monitor`
+scroll past.
+
+Before the driver is installed it says so and offers to do it, rather than
+leaving you to find out when nothing happens in-game:
+
+![The control panel with ViGEmBus missing](docs/images/control-panel-no-driver.png)
+
+And once the driver is in but no controller is connected yet:
+
+![The control panel ready to start](docs/images/control-panel-ready.png)
 
 Remapping still happens in the config file; the panel does not edit it yet.
 
