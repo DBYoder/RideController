@@ -1,0 +1,154 @@
+name: build-exe
+
+# PyInstaller cannot cross-compile, so the Windows executable has to be built
+# on Windows. This is that build.
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write # needed only by the release step below
+
+jobs:
+  windows-exe:
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # vgamepad is published as an sdist only, so pip always executes its
+      # setup.py - and that runs `msiexec /i` on the bundled ViGEmBus installer
+      # with no /quiet flag. Its own comment calls it a "blocking call". On a
+      # headless runner nobody clicks through the dialog and the job hangs
+      # until it times out.
+      #
+      # Installing the driver first, silently, from the very same MSI is enough:
+      # setup.py checks the uninstall registry and skips its prompt when it
+      # finds one. Downloaded straight from PyPI rather than with pip, because
+      # pip would run the setup.py we are trying to get ahead of.
+      - name: Install ViGEmBus before pip can prompt for it
+        timeout-minutes: 10
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $meta = Invoke-RestMethod 'https://pypi.org/pypi/vgamepad/json'
+          $sdist = $meta.urls | Where-Object { $_.packagetype -eq 'sdist' } | Select-Object -First 1
+          if (-not $sdist) { throw 'no vgamepad sdist found on PyPI' }
+          Write-Host "vgamepad sdist: $($sdist.filename)"
+
+          New-Item -ItemType Directory -Force -Path vgamepad-src | Out-Null
+          Invoke-WebRequest $sdist.url -OutFile vgamepad-src\vgamepad.tar.gz -UseBasicParsing
+          tar -xzf vgamepad-src\vgamepad.tar.gz -C vgamepad-src
+
+          $msi = Get-ChildItem -Path vgamepad-src -Recurse -Filter 'ViGEmBusSetup_x64.msi' |
+                 Select-Object -First 1
+          if (-not $msi) { throw 'ViGEmBusSetup_x64.msi is not in the vgamepad sdist' }
+
+          $proc = Start-Process msiexec -Wait -PassThru -ArgumentList @(
+            '/i', "`"$($msi.FullName)`"", '/quiet', '/norestart'
+          )
+          # 3010 is success-pending-reboot. The uninstall entry is written
+          # either way, which is all vgamepad's detection reads.
+          if ($proc.ExitCode -notin @(0, 3010)) {
+            throw "ViGEmBus installer failed with exit code $($proc.ExitCode)"
+          }
+          Write-Host "ViGEmBus installer exit code: $($proc.ExitCode)"
+
+      # Fail loudly here rather than hanging in the next step.
+      - name: Confirm pip will not prompt
+        run: |
+          $registry = reg query 'HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall' /s
+          if (-not ($registry | Select-String -Quiet 'Nefarius Virtual Gamepad Emulation Bus Driver')) {
+            Write-Host '::error::ViGEmBus is absent from the uninstall registry, so vgamepad'
+            Write-Host '::error::would open its installer dialog and hang the build.'
+            exit 1
+          }
+          Write-Host 'ViGEmBus is registered - vgamepad will skip its installer.'
+
+      - name: Install the project and PyInstaller
+        timeout-minutes: 10
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install .
+          python -m pip install pyinstaller
+
+      - name: Run the test suite
+        run: |
+          python -m pip install pytest
+          python -m pytest -q
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: Build the executable
+        run: |
+          pyinstaller --noconfirm --clean packaging/ridecontroller.spec
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      # Everything below runs the built exe, not the source, so it catches the
+      # imports PyInstaller silently left out.
+      - name: Smoke test - version
+        run: |
+          .\dist\ridecontroller.exe --version
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: Smoke test - mapping table
+        run: |
+          .\dist\ridecontroller.exe outputs
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: Smoke test - drive the mapping engine
+        run: |
+          .\dist\ridecontroller.exe simulate --backend debug --hold 0.01
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: Smoke test - config round trip
+        run: |
+          .\dist\ridecontroller.exe init-config
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          .\dist\ridecontroller.exe outputs
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      # ViGEmBus is installed above, so this may genuinely create a virtual pad
+      # through the bundled ViGEmClient.dll - the one path that cannot be
+      # tested anywhere but Windows. Not gating: the driver may need the reboot
+      # it was told to skip before it will load.
+      - name: Smoke test - real ViGEmBus pad (best effort)
+        continue-on-error: true
+        run: .\dist\ridecontroller.exe simulate --backend xbox360 --hold 0.01
+
+      # Informational. A runner has no Bluetooth radio, so doctor reports at
+      # least that failure and correctly exits 1.
+      - name: doctor (expected to fail on a runner)
+        continue-on-error: true
+        run: .\dist\ridecontroller.exe doctor
+
+      - name: Report the size
+        run: |
+          $exe = Get-Item .\dist\ridecontroller.exe
+          Write-Host ("ridecontroller.exe is {0:N1} MB" -f ($exe.Length / 1MB))
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ridecontroller-windows-x64
+          path: dist/ridecontroller.exe
+          if-no-files-found: error
+
+      - name: Attach to the release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view ${{ github.ref_name }} 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload ${{ github.ref_name }} dist\ridecontroller.exe --clobber
+          } else {
+            gh release create ${{ github.ref_name }} dist\ridecontroller.exe --generate-notes
+          }
+          if ($LASTEXITCODE -ne 0) { exit 1 }
