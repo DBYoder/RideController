@@ -112,7 +112,7 @@ If PowerShell answers `The term 'ridecontroller' is not recognized`, pip's
 
 | Zwift Ride input | Xbox output | Notes |
 | --- | --- | --- |
-| D-pad up/down/left/right | D-pad (and left stick) | `dpad_drives_left_stick` also deflects the stick, for games that only read the stick |
+| D-pad up/down/left/right | D-pad | Set `dpad_drives_left_stick` to also deflect the left stick, for games that read the stick and ignore the D-pad |
 | A | A | |
 | B | B | |
 | Y | Y | |
@@ -162,8 +162,9 @@ you can keep one profile per game.
   special.
 - If a game ignores it, open Steam Input for that game and confirm the pad is
   detected; Big Picture usually finds it immediately.
-- Games that only read the analog stick still work: the D-pad drives the left
-  stick as well by default.
+- If a game reads the analog stick and ignores the D-pad, set
+  `dpad_drives_left_stick = true` so the D-pad deflects the stick too. It is off
+  by default because a game that reads *both* then counts every press twice.
 - Steam sometimes only enumerates controllers present at launch. If the game
   cannot see the pad, start `ridecontroller run` first, then Steam.
 

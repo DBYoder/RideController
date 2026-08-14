@@ -123,7 +123,7 @@ class Mapper:
 
     buttons: dict[str, str] = field(default_factory=dict)
     analog: dict[str, AnalogSpec] = field(default_factory=dict)
-    dpad_drives_left_stick: bool = True
+    dpad_drives_left_stick: bool = False
 
     def __post_init__(self) -> None:
         for name, output in self.buttons.items():
