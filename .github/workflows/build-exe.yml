@@ -151,33 +151,33 @@ jobs:
             Write-Host 'the control panel opened and stayed up'
           }
 
-      # ViGEmBus is installed above, so this may genuinely create a virtual pad
-      # through the bundled ViGEmClient.dll - the one path that cannot be
-      # tested anywhere but Windows. Not gating: the driver may need the reboot
-      # it was told to skip before it will load.
-      - name: Smoke test - real ViGEmBus pad (best effort)
-        continue-on-error: true
-        run: .\dist\ridecontroller.exe simulate --backend xbox360 --hold 0.01
-
-      # Informational. A runner has no Bluetooth radio, so doctor reports at
-      # least that failure and correctly exits 1.
-      - name: doctor (expected to fail on a runner)
-        continue-on-error: true
-        run: .\dist\ridecontroller.exe doctor
-
       # Everything above runs with ViGEmBus present, which is exactly how a
       # crash on machines without it reached a user: vgamepad raises from
       # inside its own import when the driver is absent, and the import
       # succeeds here. Take the driver away and check the failure is handled.
       #
-      # Last, because it removes the driver the earlier steps depend on.
+      # Ahead of the pad checks below, not after them: uninstalling a bus
+      # driver while a virtual pad is still attached to it hangs, which is
+      # what happened when this ran last.
       - name: Smoke test - behaviour with no driver installed
+        timeout-minutes: 6
         run: |
           $msi = Get-ChildItem -Path vgamepad-src -Recurse -Filter 'ViGEmBusSetup_x64.msi' |
                  Select-Object -First 1
-          Start-Process msiexec -Wait -ArgumentList @(
+
+          # Removing a bus driver can block indefinitely when a virtual pad
+          # from an earlier step is still attached, so bound the wait. Failing
+          # to *set up* this check is not the same as the check failing: the
+          # behaviour it guards is covered by unit tests either way.
+          $remove = Start-Process msiexec -PassThru -ArgumentList @(
             '/x', "`"$($msi.FullName)`"", '/quiet', '/norestart'
           )
+          if (-not $remove.WaitForExit(120000)) {
+            try { $remove.Kill() } catch { }
+            Write-Host '::warning::ViGEmBus would not uninstall within 2 minutes; skipping the no-driver check'
+            exit 0
+          }
+
           Write-Host '--- doctor, driver removed ---'
           $out = (.\dist\ridecontroller.exe doctor 2>&1 | Out-String)
           $code = $LASTEXITCODE
@@ -200,6 +200,20 @@ jobs:
             exit 1
           }
           Write-Host 'the exe reinstalled ViGEmBus from its own bundle'
+
+      # ViGEmBus is installed above, so this may genuinely create a virtual pad
+      # through the bundled ViGEmClient.dll - the one path that cannot be
+      # tested anywhere but Windows. Not gating: the driver may need the reboot
+      # it was told to skip before it will load.
+      - name: Smoke test - real ViGEmBus pad (best effort)
+        continue-on-error: true
+        run: .\dist\ridecontroller.exe simulate --backend xbox360 --hold 0.01
+
+      # Informational. A runner has no Bluetooth radio, so doctor reports at
+      # least that failure and correctly exits 1.
+      - name: doctor (expected to fail on a runner)
+        continue-on-error: true
+        run: .\dist\ridecontroller.exe doctor
 
       - name: Report the size
         run: |
