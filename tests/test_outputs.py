@@ -31,6 +31,30 @@ def test_xbox360_backend_reports_a_missing_driver_clearly(monkeypatch):
     assert "vgamepad" in str(excinfo.value)
 
 
+def test_xbox360_backend_survives_vgamepad_raising_during_import(monkeypatch):
+    """vgamepad connects to ViGEmBus while importing.
+
+    With the driver absent it raises a bare Exception from inside its own
+    __init__, not an ImportError - which used to escape as a traceback.
+    """
+    import builtins
+
+    real_import = builtins.__import__
+
+    def exploding_import(name, *args, **kwargs):
+        if name == "vgamepad":
+            raise Exception("VIGEM_ERROR_BUS_NOT_FOUND")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", exploding_import)
+
+    with pytest.raises(OutputError) as excinfo:
+        Xbox360Output().open()
+    message = str(excinfo.value)
+    assert "ViGEmBus" in message
+    assert "VIGEM_ERROR_BUS_NOT_FOUND" in message
+
+
 def test_debug_backend_only_prints_changes():
     stream = io.StringIO()
     output = DebugOutput(stream=stream)

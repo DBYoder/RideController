@@ -72,3 +72,80 @@ def test_version_flag():
     with pytest.raises(SystemExit) as excinfo:
         main(["--version"])
     assert excinfo.value.code == 0
+
+
+def _stub_scan(monkeypatch):
+    """Keep doctor away from a real Bluetooth radio."""
+
+    async def no_controllers(*args, **kwargs):
+        return []
+
+    monkeypatch.setattr("ridecontroller.cli.scan", no_controllers)
+
+
+def test_doctor_survives_vgamepad_raising_during_import(monkeypatch, capsys):
+    """The check that reports a missing driver must not crash on one.
+
+    vgamepad raises a bare Exception at import time when ViGEmBus is absent,
+    so catching only ImportError took down the whole command.
+    """
+    import builtins
+
+    _stub_scan(monkeypatch)
+    real_import = builtins.__import__
+
+    def exploding_import(name, *args, **kwargs):
+        if name == "vgamepad":
+            raise Exception("VIGEM_ERROR_BUS_NOT_FOUND")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", exploding_import)
+
+    assert main(["doctor"]) == 1
+    out = capsys.readouterr().out
+    assert "VIGEM_ERROR_BUS_NOT_FOUND" in out
+    assert "install-driver" in out
+    assert "Some checks failed" in out
+
+
+def test_doctor_still_reports_a_missing_vgamepad_package(monkeypatch, capsys):
+    _stub_scan(monkeypatch)
+    monkeypatch.setitem(__import__("sys").modules, "vgamepad", None)
+
+    assert main(["doctor"]) == 1
+    assert "vgamepad is not installed" in capsys.readouterr().out
+
+
+def test_install_driver_refuses_off_windows(monkeypatch, capsys):
+    monkeypatch.setattr("ridecontroller.cli.platform.system", lambda: "Linux")
+    assert main(["install-driver"]) == 2
+    assert "Windows driver" in capsys.readouterr().err
+
+
+def test_install_driver_points_at_the_download_when_unbundled(monkeypatch, capsys):
+    monkeypatch.setattr("ridecontroller.cli.platform.system", lambda: "Windows")
+    monkeypatch.setattr("ridecontroller.cli.find_installer", lambda *a, **k: None)
+    assert main(["install-driver"]) == 1
+    assert "nefarius/ViGEmBus" in capsys.readouterr().err
+
+
+def test_install_driver_reports_a_reboot_requirement(monkeypatch, tmp_path, capsys):
+    msi = tmp_path / "ViGEmBusSetup_x64.msi"
+    msi.write_bytes(b"")
+    monkeypatch.setattr("ridecontroller.cli.platform.system", lambda: "Windows")
+    monkeypatch.setattr("ridecontroller.cli.find_installer", lambda *a, **k: msi)
+    monkeypatch.setattr("ridecontroller.cli.run_installer", lambda *a, **k: 3010)
+
+    assert main(["install-driver"]) == 0
+    assert "Reboot" in capsys.readouterr().out
+
+
+def test_install_driver_reports_a_cancelled_install(monkeypatch, tmp_path, capsys):
+    msi = tmp_path / "ViGEmBusSetup_x64.msi"
+    msi.write_bytes(b"")
+    monkeypatch.setattr("ridecontroller.cli.platform.system", lambda: "Windows")
+    monkeypatch.setattr("ridecontroller.cli.find_installer", lambda *a, **k: msi)
+    monkeypatch.setattr("ridecontroller.cli.run_installer", lambda *a, **k: 1602)
+
+    assert main(["install-driver"]) == 1
+    assert "cancelled" in capsys.readouterr().out

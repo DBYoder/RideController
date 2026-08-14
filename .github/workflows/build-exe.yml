@@ -134,6 +134,42 @@ jobs:
         continue-on-error: true
         run: .\dist\ridecontroller.exe doctor
 
+      # Everything above runs with ViGEmBus present, which is exactly how a
+      # crash on machines without it reached a user: vgamepad raises from
+      # inside its own import when the driver is absent, and the import
+      # succeeds here. Take the driver away and check the failure is handled.
+      #
+      # Last, because it removes the driver the earlier steps depend on.
+      - name: Smoke test - behaviour with no driver installed
+        run: |
+          $msi = Get-ChildItem -Path vgamepad-src -Recurse -Filter 'ViGEmBusSetup_x64.msi' |
+                 Select-Object -First 1
+          Start-Process msiexec -Wait -ArgumentList @(
+            '/x', "`"$($msi.FullName)`"", '/quiet', '/norestart'
+          )
+          Write-Host '--- doctor, driver removed ---'
+          $out = (.\dist\ridecontroller.exe doctor 2>&1 | Out-String)
+          $code = $LASTEXITCODE
+          Write-Host $out
+          if ($out -match 'Traceback') {
+            Write-Host '::error::doctor crashed instead of reporting the missing driver'
+            exit 1
+          }
+          if ($code -ne 1) {
+            Write-Host "::error::doctor should exit 1 without a driver, got $code"
+            exit 1
+          }
+
+          # Proves the bundled MSI is findable inside a frozen build, which
+          # only holds if PyInstaller collected it under _MEIPASS.
+          Write-Host '--- install-driver, from the exe''s own bundled MSI ---'
+          .\dist\ridecontroller.exe install-driver --quiet
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host '::error::install-driver could not install the bundled MSI'
+            exit 1
+          }
+          Write-Host 'the exe reinstalled ViGEmBus from its own bundle'
+
       - name: Report the size
         run: |
           $exe = Get-Item .\dist\ridecontroller.exe

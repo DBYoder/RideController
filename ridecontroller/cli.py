@@ -21,6 +21,12 @@ from .config import (
     write_default_config,
 )
 from .constants import RIDE_ANALOG_NAMES, RIDE_BUTTON_NAMES
+from .driver import (
+    VIGEMBUS_RELEASES,
+    describe_exit_code,
+    find_installer,
+    run_installer,
+)
 from .mapping import ANALOG_OUTPUTS, BUTTON_OUTPUTS
 from .outputs import BACKENDS, OutputError, create_output
 from .protocol import ControllerInput
@@ -107,6 +113,14 @@ def build_parser() -> argparse.ArgumentParser:
         "doctor", help="check that Bluetooth and the virtual gamepad driver work"
     )
     doctor_parser.set_defaults(func=cmd_doctor)
+
+    driver_parser = subparsers.add_parser(
+        "install-driver", help="install the bundled ViGEmBus driver"
+    )
+    driver_parser.add_argument(
+        "--quiet", action="store_true", help="install without the installer UI"
+    )
+    driver_parser.set_defaults(func=cmd_install_driver)
 
     return parser
 
@@ -299,7 +313,18 @@ def cmd_doctor(args: argparse.Namespace, config: Config) -> int:
     if config.output.backend == "xbox360" or platform.system() == "Windows":
         try:
             import vgamepad  # noqa: F401
-
+        except ImportError:
+            ok = False
+            print("  [FAIL] vgamepad is not installed  ->  pip install vgamepad")
+        except Exception as exc:
+            # vgamepad talks to ViGEmBus during import and raises a bare
+            # Exception when the driver is absent, so this cannot narrow to
+            # ImportError - doing so crashed the very check meant to report it.
+            ok = False
+            print(f"  [FAIL] vgamepad cannot reach ViGEmBus: {exc}")
+            print("         The driver is missing. Install it with:")
+            print("           ridecontroller install-driver")
+        else:
             print("  [ok]   vgamepad is installed")
             try:
                 output = create_output("xbox360")
@@ -310,9 +335,6 @@ def cmd_doctor(args: argparse.Namespace, config: Config) -> int:
             except OutputError as exc:
                 ok = False
                 print(f"  [FAIL] {exc}")
-        except ImportError:
-            ok = False
-            print("  [FAIL] vgamepad is not installed  ->  pip install vgamepad")
     else:
         print("  [skip] virtual gamepad checks (backend is not xbox360)")
 
@@ -334,3 +356,28 @@ def cmd_doctor(args: argparse.Namespace, config: Config) -> int:
     print()
     print("All good." if ok else "Some checks failed - see above.")
     return 0 if ok else 1
+
+
+def cmd_install_driver(args: argparse.Namespace, config: Config) -> int:
+    if platform.system() != "Windows":
+        print("error: ViGEmBus is a Windows driver.", file=sys.stderr)
+        return 2
+
+    msi = find_installer()
+    if msi is None:
+        print("Could not find a bundled ViGEmBus installer.", file=sys.stderr)
+        print(f"Download and run it from {VIGEMBUS_RELEASES}", file=sys.stderr)
+        return 1
+
+    print(f"Installing ViGEmBus from {msi.name}")
+    print("Windows will ask for administrator permission.")
+    print()
+
+    succeeded, message = describe_exit_code(run_installer(msi, quiet=args.quiet))
+    print(message)
+    if succeeded:
+        print("Check it with: ridecontroller doctor")
+        return 0
+
+    print(f"Install it by hand instead: {VIGEMBUS_RELEASES}", file=sys.stderr)
+    return 1
