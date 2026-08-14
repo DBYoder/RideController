@@ -29,14 +29,27 @@ per-game bindings and controller glyphs all work normally.
 
 ## Install
 
+You do not need git. In PowerShell:
+
+```powershell
+irm https://raw.githubusercontent.com/DBYoder/RideController/HEAD/install.ps1 -OutFile install.ps1
+powershell -ExecutionPolicy Bypass -File install.ps1
+```
+
+That checks for Python, downloads the project to `%USERPROFILE%\RideController`,
+installs it and runs `ridecontroller doctor`. Use `-Path` to put it somewhere
+else, and `-Force` to replace an existing install.
+
+If you do have git:
+
 ```powershell
 git clone https://github.com/DBYoder/RideController.git
 cd RideController
 py -m pip install -e .
 ```
 
-On Windows that also pulls in `vgamepad`. If ViGEmBus is not installed yet, the
-first run pops up its installer; reboot afterwards if it asks you to.
+Either way, Windows also pulls in `vgamepad`. If ViGEmBus is not installed yet,
+the first run pops up its installer; reboot afterwards if it asks you to.
 
 ## Quick start
 
@@ -60,6 +73,10 @@ ridecontroller run
 
 Start `ridecontroller run` **before** launching the game so Steam picks the pad
 up at startup. Press `Ctrl+C` to stop; all buttons are released on exit.
+
+If PowerShell answers `The term 'ridecontroller' is not recognized`, pip's
+`Scripts` directory is not on your `PATH`. Everything above also works as
+`py -m ridecontroller ...` — for example `py -m ridecontroller doctor`.
 
 ## Default mapping
 
