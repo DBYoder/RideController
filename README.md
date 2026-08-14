@@ -20,7 +20,7 @@ per-game bindings and controller glyphs all work normally.
 ## Requirements
 
 - Windows 10 or 11
-- Python 3.10 or newer
+- Python 3.10 or newer — **not needed** if you use the `.exe`
 - A Bluetooth LE adapter (built-in or USB)
 - [ViGEmBus](https://github.com/nefarius/ViGEmBus/releases) — the `vgamepad`
   package installs it for you on first use if it is missing
@@ -29,7 +29,30 @@ per-game bindings and controller glyphs all work normally.
 
 ## Install
 
-You do not need git. In PowerShell:
+### The executable — nothing else to install
+
+Download `ridecontroller.exe` from the
+[latest release](https://github.com/DBYoder/RideController/releases/latest),
+put it anywhere, and run it from PowerShell:
+
+```powershell
+.\ridecontroller.exe doctor
+```
+
+No Python, no pip, no git — it is all bundled. Every command below works the
+same way, as `.\ridecontroller.exe run` and so on.
+
+You still need ViGEmBus. It is a kernel-mode driver, so it cannot live inside
+an exe — but its installer is bundled, and `vgamepad` runs it the first time a
+pad is created. Reboot afterwards if it asks you to.
+
+Two other things to expect the first time. Windows SmartScreen will warn about
+an unrecognised publisher, because the exe is not code-signed: choose **More
+info** → **Run anyway**. And startup takes a second or two longer than the
+installed version, since a single-file build unpacks itself to a temp
+directory on each run.
+
+### From source, without git
 
 ```powershell
 irm https://raw.githubusercontent.com/DBYoder/RideController/HEAD/install.ps1 -OutFile install.ps1
@@ -40,7 +63,7 @@ That checks for Python, downloads the project to `%USERPROFILE%\RideController`,
 installs it and runs `ridecontroller doctor`. Use `-Path` to put it somewhere
 else, and `-Force` to replace an existing install.
 
-If you do have git:
+### From source, with git
 
 ```powershell
 git clone https://github.com/DBYoder/RideController.git
@@ -48,8 +71,8 @@ cd RideController
 py -m pip install -e .
 ```
 
-Either way, Windows also pulls in `vgamepad`. If ViGEmBus is not installed yet,
-the first run pops up its installer; reboot afterwards if it asks you to.
+Both source installs pull in `vgamepad`. If ViGEmBus is not installed yet, the
+first run pops up its installer; reboot afterwards if it asks you to.
 
 ## Quick start
 
@@ -184,13 +207,31 @@ state machine against a fake BLE backend — so everything except the ViGEmBus
 call itself runs without hardware. Use `--backend debug` to run the bridge on a
 machine with no virtual-gamepad driver.
 
+### Building the executable
+
+```powershell
+py -m pip install pyinstaller
+pyinstaller --noconfirm --clean packaging/ridecontroller.spec
+```
+
+The result is `dist\ridecontroller.exe`. PyInstaller does not cross-compile, so
+this has to run on Windows; `.github/workflows/build-exe.yml` does it on a
+`windows-latest` runner for every push, and attaches the exe to the release
+when a `v*` tag is pushed.
+
+The spec collects `vgamepad`'s package data explicitly, because ViGEmClient.dll
+ships inside that package — miss it and the exe builds fine but cannot create a
+pad. `bleak` needs no such handling; it provides its own PyInstaller hooks.
+
 ## Not included
 
 - Zwift Play and Zwift Click. They speak the same protocol with a different
   button layout; `accept_any_zwift_device = true` will connect, but the mapping
   is not written for them.
 - Haptics — the Ride can buzz, but nothing here sends the command.
-- Keyboard/mouse emulation, a GUI, and a packaged `.exe`.
+- Keyboard/mouse emulation and a GUI.
+- A code-signed executable. The `.exe` is unsigned, so SmartScreen warns the
+  first time you run it.
 
 ## Credits
 
