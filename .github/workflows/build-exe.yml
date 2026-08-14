@@ -8,6 +8,11 @@ on:
     branches: ["**"]
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Cut a release with this tag, e.g. v0.1.0. Leave empty to only build."
+        required: false
+        default: ""
 
 permissions:
   contents: write # needed only by the release step below
@@ -140,15 +145,23 @@ jobs:
           path: dist/ridecontroller.exe
           if-no-files-found: error
 
+      # Runs for a pushed v* tag, or for a manual run given a release_tag.
+      # The manual path exists because `gh release create` also creates the tag
+      # when it is missing, so a release can be cut without push access to tags.
       - name: Attach to the release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/v') || inputs.release_tag != ''
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.release_tag || github.ref_name }}
         run: |
-          gh release view ${{ github.ref_name }} 2>$null
+          gh release view $env:TAG 2>$null
           if ($LASTEXITCODE -eq 0) {
-            gh release upload ${{ github.ref_name }} dist\ridecontroller.exe --clobber
+            gh release upload $env:TAG dist\ridecontroller.exe --clobber
           } else {
-            gh release create ${{ github.ref_name }} dist\ridecontroller.exe --generate-notes
+            gh release create $env:TAG dist\ridecontroller.exe `
+              --target $env:GITHUB_SHA `
+              --title "RideController $env:TAG" `
+              --generate-notes
           }
           if ($LASTEXITCODE -ne 0) { exit 1 }
+          Write-Host "release: $(gh release view $env:TAG --json url --jq .url)"
