@@ -69,7 +69,7 @@ class DeviceConfig:
 @dataclass
 class OutputConfig:
     backend: str = "xbox360"
-    dpad_drives_left_stick: bool = True
+    dpad_drives_left_stick: bool = False
 
 
 @dataclass
@@ -261,9 +261,10 @@ DEFAULT_CONFIG_TEXT = """\
 [output]
 # "xbox360" = virtual Xbox 360 pad (needs ViGEmBus). "debug" = print only.
 backend = "xbox360"
-# Make the D-pad move the left stick as well, so games that only read the
-# analog stick still respond to it.
-dpad_drives_left_stick = true
+# Make the D-pad move the left stick as well. Only turn this on for a game
+# that reads the stick and ignores the D-pad: a game that reads both sees one
+# press as two, which shows up as menus jumping two items at a time.
+dpad_drives_left_stick = false
 
 [device]
 # Substrings matched against the advertised BLE name. Empty = any Zwift Ride.

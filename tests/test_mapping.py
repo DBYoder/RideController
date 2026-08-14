@@ -136,3 +136,27 @@ def test_describe_summarises_state():
         buttons=frozenset({"A"}), left_trigger=128, left_stick=(100, -100)
     )
     assert state.describe() == "A LT=128 LS=100,-100"
+
+
+def test_dpad_does_not_move_the_stick_by_default():
+    """A D-pad press must be one input, not a button and a stick deflection.
+
+    Reported from a real game: emitting both made anything that reads the
+    D-pad *and* the stick count every press twice.
+
+    Built without the helper on purpose - the helper passes the flag
+    explicitly, so it would not catch the dataclass default changing.
+    """
+    mapper = Mapper(buttons=dict(DEFAULT_BUTTON_MAP), analog=dict(DEFAULT_ANALOG_MAP))
+    assert mapper.dpad_drives_left_stick is False
+
+    state = mapper.apply(ControllerInput(buttons=frozenset({"dpad_up"})))
+    assert "DPAD_UP" in state.buttons
+    assert state.left_stick == (0, 0)
+
+
+def test_dpad_still_moves_the_stick_when_asked():
+    mapper = default_mapper(dpad_drives_left_stick=True)
+    state = mapper.apply(ControllerInput(buttons=frozenset({"dpad_up"})))
+    assert "DPAD_UP" in state.buttons
+    assert state.left_stick[1] > 0

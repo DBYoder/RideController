@@ -122,3 +122,11 @@ def test_write_default_config_refuses_to_clobber(tmp_path):
 def test_default_config_path_prefers_appdata_on_windows(tmp_path, monkeypatch):
     monkeypatch.setenv("APPDATA", str(tmp_path))
     assert default_config_path() == tmp_path / "RideController" / "config.toml"
+
+
+def test_dpad_does_not_drive_the_stick_unless_configured():
+    """The shipped default must not double every D-pad press."""
+    mapper = parse_config({}).mapper()
+    assert mapper.dpad_drives_left_stick is False
+    assert parse_config({"output": {"dpad_drives_left_stick": True}}) \
+        .mapper().dpad_drives_left_stick is True
