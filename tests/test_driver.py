@@ -52,11 +52,16 @@ def test_frozen_builds_look_under_meipass(monkeypatch, tmp_path):
 
 
 def test_unfrozen_builds_do_not_consult_meipass(monkeypatch, tmp_path):
+    """_MEIPASS means nothing outside a frozen build."""
     _make_vgamepad_tree(tmp_path)
     monkeypatch.setattr(sys, "_MEIPASS", str(tmp_path), raising=False)
     monkeypatch.delattr(sys, "frozen", raising=False)
-    # Resolves through the real vgamepad, which is not installed off Windows.
-    assert find_installer(arch="x64") is None
+
+    found = find_installer(arch="x64")
+    # Off Windows there is no vgamepad and this is None; on Windows it
+    # resolves through the real package. Either way it must not come from
+    # the _MEIPASS tree planted above.
+    assert found is None or tmp_path not in found.parents
 
 
 def test_exit_code_zero_is_success():
