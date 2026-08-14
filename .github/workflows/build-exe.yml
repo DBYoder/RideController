@@ -1,0 +1,95 @@
+name: build-exe
+
+# PyInstaller cannot cross-compile, so the Windows executable has to be built
+# on Windows. This is that build.
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write # needed only by the release step below
+
+jobs:
+  windows-exe:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install the project and PyInstaller
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install .
+          python -m pip install pyinstaller
+
+      - name: Run the test suite
+        run: |
+          python -m pip install pytest
+          python -m pytest -q
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: Build the executable
+        run: |
+          pyinstaller --noconfirm --clean packaging/ridecontroller.spec
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      # Everything below runs the built exe, not the source, so it catches the
+      # imports PyInstaller silently left out.
+      - name: Smoke test - version
+        run: |
+          .\dist\ridecontroller.exe --version
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: Smoke test - mapping table
+        run: |
+          .\dist\ridecontroller.exe outputs
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: Smoke test - drive the mapping engine
+        run: |
+          .\dist\ridecontroller.exe simulate --backend debug --hold 0.01
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: Smoke test - config round trip
+        run: |
+          .\dist\ridecontroller.exe init-config
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          .\dist\ridecontroller.exe outputs
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      # Informational only. A GitHub runner has neither ViGEmBus nor a
+      # Bluetooth radio, so doctor is expected to report failures and exit 1.
+      - name: doctor (expected to fail on a runner)
+        continue-on-error: true
+        run: .\dist\ridecontroller.exe doctor
+
+      - name: Report the size
+        run: |
+          $exe = Get-Item .\dist\ridecontroller.exe
+          Write-Host ("ridecontroller.exe is {0:N1} MB" -f ($exe.Length / 1MB))
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ridecontroller-windows-x64
+          path: dist/ridecontroller.exe
+          if-no-files-found: error
+
+      - name: Attach to the release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view ${{ github.ref_name }} 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload ${{ github.ref_name }} dist\ridecontroller.exe --clobber
+          } else {
+            gh release create ${{ github.ref_name }} dist\ridecontroller.exe --generate-notes
+          }
+          if ($LASTEXITCODE -ne 0) { exit 1 }
