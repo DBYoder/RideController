@@ -22,8 +22,8 @@ per-game bindings and controller glyphs all work normally.
 - Windows 10 or 11
 - Python 3.10 or newer — **not needed** if you use the `.exe`
 - A Bluetooth LE adapter (built-in or USB)
-- [ViGEmBus](https://github.com/nefarius/ViGEmBus/releases) — the `vgamepad`
-  package installs it for you on first use if it is missing
+- [ViGEmBus](https://github.com/nefarius/ViGEmBus/releases) — a source install
+  pulls it in via `vgamepad`; with the `.exe`, run `install-driver` once
 - A Zwift Ride controller **not currently connected to Zwift or the Zwift
   Companion app** (BLE controllers only talk to one host at a time)
 
@@ -80,6 +80,33 @@ py -m pip install -e .
 
 Both source installs pull in `vgamepad`. If ViGEmBus is not installed yet, the
 first run pops up its installer; reboot afterwards if it asks you to.
+
+## The control panel
+
+Double-click `ridecontroller.exe`, or run it with no arguments, and it opens a
+window instead of printing usage:
+
+```powershell
+.\ridecontroller.exe gui
+```
+
+![The control panel, connected and running](docs/images/control-panel-running.png)
+
+Buttons light up as you press them, and the triggers move with the brake
+paddles. That is the quickest way to check a remap, or to find which physical
+button produces which name — faster than reading `ridecontroller monitor`
+scroll past.
+
+Before the driver is installed it says so and offers to do it, rather than
+leaving you to find out when nothing happens in-game:
+
+![The control panel with ViGEmBus missing](docs/images/control-panel-no-driver.png)
+
+And once the driver is in but no controller is connected yet:
+
+![The control panel ready to start](docs/images/control-panel-ready.png)
+
+Remapping still happens in the config file; the panel does not edit it yet.
 
 ## Quick start
 
@@ -196,6 +223,8 @@ what the controller is actually sending.
 | `ridecontroller/bridge.py` | Merges both controller halves and pushes state to a backend |
 | `ridecontroller/config.py` | TOML config, validation, the annotated starter file |
 | `ridecontroller/cli.py` | `scan`, `monitor`, `run`, `simulate`, `doctor`, … |
+| `ridecontroller/gui.py` | The Tkinter control panel |
+| `ridecontroller/driver.py` | Finding and running the bundled ViGEmBus installer |
 
 The controller pushes complete state snapshots rather than press/release events,
 so the bridge is stateless: decode → merge → map → apply. If one half of the
@@ -238,7 +267,7 @@ pad. `bleak` needs no such handling; it provides its own PyInstaller hooks.
   button layout; `accept_any_zwift_device = true` will connect, but the mapping
   is not written for them.
 - Haptics — the Ride can buzz, but nothing here sends the command.
-- Keyboard/mouse emulation and a GUI.
+- Keyboard/mouse emulation.
 - A code-signed executable. The `.exe` is unsigned, so SmartScreen warns the
   first time you run it.
 

@@ -149,3 +149,22 @@ def test_install_driver_reports_a_cancelled_install(monkeypatch, tmp_path, capsy
 
     assert main(["install-driver"]) == 1
     assert "cancelled" in capsys.readouterr().out
+
+
+def test_no_arguments_opens_the_control_panel(monkeypatch):
+    """Double-clicking the exe passes no arguments; that must not be an error."""
+    called = {}
+
+    def fake_gui(args, config):
+        called["command"] = args.command
+        return 0
+
+    monkeypatch.setattr("ridecontroller.cli.cmd_gui", fake_gui)
+    assert main([]) == 0
+    assert called["command"] == "gui"
+
+
+def test_an_unknown_command_is_still_an_error():
+    with pytest.raises(SystemExit) as excinfo:
+        main(["nonsense"])
+    assert excinfo.value.code == 2

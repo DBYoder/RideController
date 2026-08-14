@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ridecontroller"
-version = "0.1.2"
+version = "0.2.0"
 description = "Use a Zwift Ride controller as a virtual Xbox gamepad for Steam games"
 readme = "README.md"
 requires-python = ">=3.10"
